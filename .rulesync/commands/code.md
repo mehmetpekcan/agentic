@@ -1,6 +1,6 @@
 ---
 targets:
-  - '*'
+  - "*"
 description: Implement a feature or fix a bug as a coordinated workflow.
 ---
 
@@ -33,11 +33,9 @@ Pass the problem statement and the full output from Step 2 to `solution-architec
 
 Present the approach document to the user. **Wait for explicit approval of the chosen approach before writing any code.** If the user pushes back, re-invoke `solution-architect` with the new constraints.
 
-### Step 4 — Write the code
+### Step 4 — Spawn `principal-engineer`
 
-Default approach is **TDD**: spawn `test-engineer` first to write failing tests, then write the implementation, then confirm tests pass.
-
-This default is overridden only if the user explicitly says to skip TDD.
+Pass the approved approach document and the Step 2 output. `principal-engineer` implements the change — defaulting to TDD, overridable only if the user explicitly says to skip it.
 
 ### Step 5 — Spawn `code-quality-engineer`
 
