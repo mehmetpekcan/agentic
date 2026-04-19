@@ -1,6 +1,3 @@
-<!-- PR_TEMPLATE_ID: DEFAULT -->
-<!-- DO NOT REMOVE: Template identifier for CI validation -->
-
 ## Summary
 
 {Brief description of what this PR does and why}

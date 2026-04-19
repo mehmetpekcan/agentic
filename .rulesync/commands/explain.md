@@ -1,110 +1,65 @@
 ---
 targets:
-  - '*'
-description: ''
+  - "*"
+description: Understand how existing code works. Investigative, read-only.
 ---
 
-# EXPLAIN Task
+# Explore & Explain
 
-**Persona:** Execute this task as the `@developer` subagent (Devin, Staff Engineer 💻).  
-Load the persona characteristics from `~/.rulesync/subagents/developer.md` before proceeding.
+Scoped responsibility: understand and explain. Nothing else.
 
-**Required Context:** Review these rules before proceeding:
+## Objective
 
-- `~/.rulesync/rules/architecture.md` - Architectural patterns to identify
-- `~/.rulesync/rules/code-quality.md` - Quality standards for evaluation
-- `~/.rulesync/rules/documentation.md` - Documentation best practices
+Answer questions about how existing code works:
 
----
+- How does a file, function, or feature operate?
+- How do components relate to each other?
+- Where is X used?
+- What breaks if I change Y?
+- What depends on this module?
 
-## Task Objective
+## Mode
 
-Provide a clear, comprehensive explanation of how a file, folder, or feature works. Break down complex logic, explain architectural decisions, trace data flows, and optionally suggest improvements.
+- **Chat only.**
+- **Read-only.** No file changes.
+- Do not suggest rewrites.
+- Do not propose improvements unless explicitly asked.
+- Do not open PRs, branches, or commits.
 
----
+Purely investigative and explanatory.
 
-## Task Instructions
+## Input
 
-1. **Initiate discovery:**
-   - Ask: "What would you like me to explain? (provide a file path, folder path, or feature description)"
-   - Examine the target code and its context
+Any of:
 
-2. **Determine explanation scope:**
+- A file path, folder, or feature name
+- A question about behaviour or impact
+- A UI element to trace back to code
 
-   Ask these questions:
-   1. "What level of detail would you like?"
-      - `high-level` - Overview and key concepts only
-      - `detailed` - Thorough walkthrough with examples
-      - `deep-dive` - Comprehensive analysis with all details
-   2. "Would you like me to suggest improvements or optimizations?"
-   3. "Are there specific aspects you want me to focus on? (e.g., data flow, error handling, performance, security)"
+If the input is unclear, ask one clarifying question, then proceed.
 
-3. **Analyze the code thoroughly:**
-   - Read the target file(s)
-   - Understand overall purpose and functionality
-   - Trace execution flow and data transformations
-   - Identify dependencies and integrations
-   - Note error handling and edge cases
-   - Recognize architectural patterns (from `~/.rulesync/rules/architecture.md`)
-   - Check related files for context (README, tests, types)
+## Method
 
-4. **Provide structured explanation:**
+1. Read the relevant files.
+2. Trace data flow, dependencies, and call sites as needed to answer the question.
+3. Do not read more than you need. Stop once the question is answered.
 
-   **For Files:**
-   - Start with purpose and context
-   - Explain imports and dependencies
-   - Walk through main logic step-by-step
-   - Highlight edge cases, error handling, security measures
-   - Note any non-obvious code or technical debt
+## Output
 
-   **For Folders/Modules:**
-   - Explain module purpose and responsibility
-   - Describe folder structure and organization
-   - Identify main entry points and public API
-   - Describe common usage patterns
+A clear explanation that answers the question asked:
 
-   **For Features:**
-   - Explain from user perspective
-   - Trace implementation across files (frontend → backend → database)
-   - Explain data flow through the system
-   - Describe integration points and business logic
+- Start with the direct answer.
+- Follow with the reasoning grounded in the code (cite file paths and lines).
+- Use a diagram only when it makes the answer clearer.
+- No summaries of the whole file when a targeted answer suffices.
 
-5. **Use clear, accessible language:**
-   - Start with high-level concepts before details
-   - Use analogies and examples when helpful
-   - Define technical terms and jargon
-   - Break complex logic into digestible chunks
-   - Use Mermaid diagrams for complex flows when helpful
-   - Highlight the "why" behind decisions
+## When spawned by `/code`
 
-6. **Optionally provide improvement suggestions:**
+If spawned by the Implementation orchestrator for a feature request, return an architectural understanding of the affected area — enough for the orchestrator to draft a plan. No more.
 
-   If requested, analyze for improvements using standards from:
-   - `~/.rulesync/rules/code-quality.md` - Code quality opportunities
-   - `~/.rulesync/rules/performance.md` - Performance optimizations
-   - `~/.rulesync/rules/security.md` - Security enhancements
-   - `~/.rulesync/rules/architecture.md` - Architectural improvements
+## Anti-patterns
 
-   Format suggestions with:
-   - Priority (High/Medium/Low)
-   - Category (Code Quality/Performance/Security/etc.)
-   - Current vs. Suggested approach
-   - Benefits and trade-offs
-   - Effort estimate
-
-7. **Provide summary:**
-   - Recap main points of explanation
-   - Highlight most important takeaways
-   - If suggestions provided, summarize top priorities
-   - Offer to dive deeper into specific areas
-   - Ask: "Would you like me to explain any specific part in more detail, or help implement any suggested improvements?"
-
----
-
-## Notes
-
-- Start broad, then focus on details
-- Use examples to demonstrate concepts
-- Explain trade-offs and design decisions
-- Be honest about unclear code or technical debt
-- Teach principles, not just mechanics
+- Generating improvement suggestions when not asked.
+- Modifying files.
+- Dumping entire file contents instead of answering the question.
+- Explaining code outside the scope of the input.
