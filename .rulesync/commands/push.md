@@ -12,16 +12,25 @@ description: Commit and push the current Git diff after passing static analysis.
 
 `git status --porcelain` to identify staged and unstaged files. Work only on these files in the steps below — not the full codebase.
 
-### Step 2 — Run static analysis on changed files
+### Step 2 — Discover and run static analysis on changed files
 
-Run all available tooling defined in the repo, scoped to changed files only:
+Before running anything, detect what the project has configured. Do not hardcode tool names.
 
-- Linter
-- Formatter (Prettier or equivalent)
-- Type-check
-- Import sorter / any other repo-defined pre-commit tooling
+**How to discover tools:**
+- Check `package.json` scripts (look for `lint`, `format`, `typecheck`, `check`, `fix`, `pre-commit`, etc.).
+- Check for config files: `.eslintrc.*`, `biome.json`, `oxlintrc.*`, `.prettierrc.*`, `dprint.json`, `lefthook.yml`, `.husky/`, `.pre-commit-config.yaml`, `.github/workflows/`.
+- Check the CI configuration for the canonical check commands.
 
-Auto-fix anything that is auto-fixable **silently** — do not narrate trivial formatting fixes.
+**Categories to cover (run whatever the project defines for each):**
+
+| Category | Examples |
+|---|---|
+| Linter | ESLint, Biome, Oxc, dprint |
+| Formatter | Prettier, Biome, dprint |
+| Type checker | `tsc --noEmit`, project-specific typecheck script |
+| Import sorter / other pre-commit tooling | any scripts defined in the repo's pre-commit config |
+
+Scope each tool to changed files only where the tool supports it. Auto-fix anything that is auto-fixable **silently** — do not narrate trivial formatting fixes.
 
 If there are unfixable errors (unresolved lint errors, type errors), surface them and **stop**. Do not commit or push until they are resolved.
 
@@ -48,3 +57,4 @@ Push the branch to its remote tracking branch.
 - Reading the diff to form opinions on the code — static analysis only.
 - Suggesting refactors or flagging design concerns.
 - Pushing when static analysis has unresolved errors.
+- Invoking a specific tool (e.g., `prettier`, `eslint`) without first confirming the project uses it.

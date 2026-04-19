@@ -13,330 +13,52 @@ cursor:
 
 # Performance Rules
 
-## Performance Best Practices
-
-- **Database Queries:** Optimize with `select`, `include`, `take`, and proper indexing
-- **SQLite Optimization:** Use indexes, limit result sets, avoid complex joins
-- **Batch Operations:** Use `Promise.all()` and Prisma batch queries to avoid N+1 problems
-- **Bundle Size:** Monitor bundle size, lazy load heavy components
-- **Image Optimization:** Use Next.js `<Image>` component with proper sizing
-- **Server Components:** Default to Server Components for better performance
-- **Code Splitting:** Use dynamic imports for large dependencies
-- **Database Indexes:** Add indexes for frequently queried fields
-- **Pagination:** Always paginate large result sets
-- **React Query as State Management:** Call the same query multiple times - React Query deduplicates and caches automatically
+Apply these principles through whatever data layer, framework, and runtime the repo uses. The patterns are universal; the implementation details vary.
 
 ---
 
-## SQLite Query Optimization
+## Data fetching
 
-### Use `select` for Specific Fields
+### Avoid N+1 queries
 
-```typescript
-// ❌ BAD: Fetches all fields (including large JSON blobs)
-const users = await prisma.user.findMany({where: {deleted: false}})
+Never fetch a list of records and then issue a separate query per record in a loop. Instead, batch the related data in a single query with joins, includes, or a bulk-fetch call — whatever the project's data layer supports.
 
-// ✅ GOOD: Only fetch needed fields
-const users = await prisma.user.findMany({
-	where: {deleted: false},
-	select: {id: true, username: true, display_name: true, image_72: true, status: true}
-})
-```
+### Project only needed fields
 
-### Limit Results with `take`
+Request only the columns/fields you will actually use. Avoid selecting `*` or fetching entire documents when only a few properties are needed. This reduces payload size and memory pressure.
 
-```typescript
-// Always add take for potentially large result sets
-const recentMessages = await prisma.message.findMany({
-	where: {conversation_id: channelId},
-	orderBy: {created_at: 'desc'},
-	take: 100 // Limit to 100 most recent
-})
-```
+### Paginate large result sets
 
-### Avoid N+1 Query Problems
+Never load an unbounded collection. Always apply a limit. For user-facing lists, use cursor-based or offset pagination with a sensible default page size.
 
-```typescript
-// ❌ BAD: N+1 queries
-const teams = await prisma.team.findMany()
-for (const team of teams) {
-	const members = await prisma.teamMember.findMany({where: {team_id: team.id}}) // N additional queries!
-}
+### Index hot query paths
 
-// ✅ GOOD: Single query with include
-const teams = await prisma.team.findMany({
-	include: {
-		members: {
-			take: 100, // Limit nested results
-			include: {user: {select: {id: true, username: true, display_name: true}}}
-		}
-	}
-})
-```
+Identify the fields used in filters, sorts, and joins that are queried frequently. Ensure the database has appropriate indexes for those access patterns. Review the query plan when something is slow.
 
-### Add Database Indexes
+### Avoid redundant reads
 
-From `apps/frontend/prisma/schema.prisma`:
-
-```prisma
-model Message {
-  id              String @id @default(cuid(2))
-  conversation_id String
-  user_id         String
-  created_at      DateTime @default(now())
-
-  // Add indexes for frequently queried fields
-  @@index([conversation_id])
-  @@index([user_id])
-  @@index([created_at])
-  @@index([parent_message_id])
-  @@map("messages")
-}
-```
+When the same data is needed in multiple places in a single request/render cycle, fetch it once and pass it down or cache it. Do not re-fetch the same resource independently in sibling components or functions.
 
 ---
 
-### Minimize Payload Size
+## Bundle and module size (front-end)
 
-```typescript
-// ❌ BAD: Send entire message object
-emitMessageEvent({
-	type: 'add',
-	message: fullMessage, // Includes all fields
-	channelId
-})
+### Lazy-load heavy modules
 
-// ✅ GOOD: Send only necessary fields
-emitMessageEvent({
-	type: 'add',
-	message: {
-		id: message.id,
-		conversation_id: message.conversation_id,
-		user_id: message.user_id,
-		content: message.content,
-		created_at: message.created_at
-		// Omit large fields like blocks, metadata
-	},
-	channelId
-})
-```
+Defer loading large dependencies until they are needed. Use the framework's dynamic import mechanism (`import()`, `React.lazy`, `dynamic()`, etc.) for components and libraries that are not required on the critical path.
 
-### Connection Management
+### Tree-shake
 
-```typescript
-// Keep-alive to prevent connection drops
-applyWSSHandler({
-	wss,
-	router: appRouter,
-	createContext,
-	keepAlive: {
-		enabled: true,
-		pingMs: 30000, // Ping every 30 seconds
-		pongWaitMs: 5000 // Wait 5 seconds for pong
-	}
-})
-```
+Prefer named imports over default namespace imports when consuming large libraries. Verify that the bundler can statically eliminate unused exports.
 
-### Subscription Cleanup
+### Minimize payload
 
-```typescript
-// Always clean up subscriptions
-api.chat.onAdd.useSubscription(
-	{channelId},
-	{
-		onData: message => {
-			// Handle message
-		}
-	}
-)
-
-// Unsubscribes automatically when component unmounts
-```
+Return only the data a client needs. Do not send entire records when a subset would suffice. This applies to API responses, server-rendered HTML props, and event payloads alike.
 
 ---
 
-## Bundle Size Optimization
+## General
 
-### Dynamic Imports
-
-```typescript
-import dynamic from 'next/dynamic';
-
-// Lazy load heavy TipTap editor
-const RichTextEditor = dynamic(() => import('./RichTextEditor'), {
-  loading: () => <div>Loading editor...</div>,
-  ssr: false,
-});
-
-export function MessageInput() {
-  const [showEditor, setShowEditor] = useState(false);
-
-  return (
-    <div>
-      <button onClick={() => setShowEditor(true)}>
-        Expand editor
-      </button>
-      {showEditor && <RichTextEditor />}
-    </div>
-  );
-}
-```
-
-### Tree Shaking
-
-```typescript
-// ❌ BAD: Imports entire library
-import _ from 'lodash'
-const result = _.uniq(array)
-
-// ✅ GOOD: Use native JavaScript
-const result = [...new Set(array)]
-```
-
----
-
-## Pagination
-
-### Cursor-Based Pagination
-
-```typescript
-export const chatRouter = createTRPCRouter({
-	historyQuery: publicProcedure
-		.input(
-			z.object({
-				channel: z.string(),
-				cursor: z.string().optional(), // Message ID
-				limit: z.number().min(1).max(1000).default(100)
-			})
-		)
-		.query(async ({input}) => {
-			const messages = await prisma.message.findMany({
-				where: {conversation_id: input.channel},
-				take: input.limit + 1, // Fetch one extra to check if there's more
-				...(input.cursor && {
-					cursor: {id: input.cursor},
-					skip: 1 // Skip the cursor itself
-				}),
-				orderBy: {created_at: 'desc'},
-				include: {user: true, reactions: true}
-			})
-
-			const hasMore = messages.length > input.limit
-			const items = hasMore ? messages.slice(0, -1) : messages
-			const nextCursor = hasMore ? items[items.length - 1].id : null
-
-			return {ok: true, messages: items, has_more: hasMore, response_metadata: {next_cursor: nextCursor}}
-		})
-})
-```
-
----
-
-## Performance Targets
-
-### Database Queries
-
-- **Simple queries:** < 50ms
-- **Complex queries with joins:** < 200ms
-- **Full-text search:** < 500ms
-
-### Real-Time Messaging
-
-- **Typing indicators:** < 50ms
-- **Presence updates:** < 100ms
-
-### API Response Times
-
-- **tRPC queries:** < 200ms
-- **tRPC mutations:** < 500ms
-
-### Bundle Size
-
-- **First Load JS:** < 200KB (gzipped)
-- **Page-specific JS:** < 50KB (gzipped)
-
----
-
-## Anti-Patterns
-
-### Don't: Load All Data Upfront
-
-```typescript
-// ❌ BAD: Load everything
-const allMessages = await prisma.message.findMany({where: {conversation_id: channelId}}) // Could be thousands!
-
-// ✅ GOOD: Paginate
-const recentMessages = await prisma.message.findMany({
-	where: {conversation_id: channelId},
-	orderBy: {created_at: 'desc'},
-	take: 100
-})
-```
-
-### Don't: Forget to Add Indexes
-
-```prisma
-// ❌ BAD: No indexes on frequently queried fields
-model Message {
-  id              String
-  conversation_id String  // Queried often but no index!
-  user_id         String  // Queried often but no index!
-}
-
-// ✅ GOOD: Add indexes
-model Message {
-  id              String
-  conversation_id String
-  user_id         String
-
-  @@index([conversation_id])
-  @@index([user_id])
-}
-```
-
----
-
-## React Query as State Management
-
-**Use React Query as your state management layer.** Call the same query multiple times in different components - React Query deduplicates requests and serves cached data.
-
-```typescript
-// ✅ GOOD: Call the same query in multiple components
-// Component 1
-function UserResults({ searchQuery }) {
-  const [users] = api.users.list.useSuspenseQuery({ team_id: clientId });
-  const matching = users.members.filter(...);
-  return <>{matching.map(...)}</>;
-}
-
-// Component 2 (calls same query - React Query deduplicates)
-function UserCount({ searchQuery }) {
-  const [users] = api.users.list.useSuspenseQuery({ team_id: clientId });
-  return <Badge>{users.members.length}</Badge>;
-}
-
-// Result: Only 1 network request, data is shared via React Query cache
-
-// ❌ BAD: Complex prop drilling to avoid "duplicate" fetches
-function Parent() {
-  const [users] = api.users.list.useSuspenseQuery({ team_id: clientId });
-  return (
-    <>
-      <UserResults users={users.members} />
-      <UserCount users={users.members} />
-    </>
-  );
-}
-```
-
-**Key insight:** Don't avoid calling queries because you think it's wasteful. React Query handles deduplication, caching, and revalidation automatically.
-
----
-
-## Related Documentation
-
-- [SQLite Performance Tips](https://www.sqlite.org/performance.html)
-- [Prisma Performance](https://www.prisma.io/docs/guides/performance-and-optimization)
-- [Next.js Performance](https://nextjs.org/docs/app/building-your-application/optimizing)
-- `{agent_directory}/{rules_directory}/database.md` - Database optimization
-- `{agent_directory}/{rules_directory}/architecture.md` - Architecture patterns
+- **Measure before optimizing.** Identify the actual bottleneck with profiling or query-plan analysis before rewriting anything.
+- **Async where appropriate.** Parallelize independent I/O operations (e.g., `Promise.all`) rather than awaiting them sequentially.
+- **Connection and resource cleanup.** Ensure subscriptions, event listeners, and open connections are released when no longer needed.

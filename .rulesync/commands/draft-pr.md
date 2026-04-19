@@ -17,10 +17,26 @@ Open a draft PR from either the branch provided or the current checked-out branc
 1. **Resolve the branch.**
    - If the user passed a branch name, use it.
    - Otherwise, use `git branch --show-current`.
-2. **Write the PR title and description.** Use `~/.rulesync/templates/pr-description-template.md` as the structure. Fill in:
+
+2. **Detect the Git host.**
+   Run `git remote -v` and inspect the remote URL to determine the host:
+   - `github.com` → GitHub
+   - `gitlab.com` or a self-hosted GitLab instance → GitLab
+   - `bitbucket.org` → Bitbucket Cloud
+   - Other → fall back to web URL or ask the user.
+
+3. **Write the PR title and description.** Use `~/.rulesync/templates/pr-description-template.md` as the structure. Fill in:
    - **Summary** — what changed and why, with any relevant context (related issues, approach decisions, known gaps).
    - **Test Plan** — how the change was verified.
-3. **Open the PR as draft.** Use `gh pr create --draft` (or equivalent). Link related issues if the user provided them.
+
+4. **Open the PR as draft using the appropriate tool:**
+   - **GitHub** — `gh pr create --draft` (requires `gh` CLI).
+   - **GitLab** — `glab mr create --draft` (requires `glab` CLI), or append `Draft:` to the MR title if using the REST API.
+   - **Bitbucket Cloud** — Bitbucket does not support draft PRs via its standard CLI. Open the PR creation URL in the browser:
+     `https://bitbucket.org/<workspace>/<repo>/pull-requests/new?source=<branch>` and instruct the user to mark it as a draft/WIP manually, or use the Bitbucket REST API if available.
+   - **Unknown host** — print the PR title and description and ask the user how to open it.
+
+   Link related issues if the user provided them.
 
 ## Hard rules
 
@@ -37,6 +53,7 @@ Open a draft PR from either the branch provided or the current checked-out branc
 
 ## Anti-patterns
 
+- Hardcoding `gh pr create` without first checking the Git host.
 - Bundling a commit step into this command.
 - Adding AI/tool attribution footers.
 - Opening as non-draft by default.
