@@ -13,91 +13,86 @@ echo -e "${CYAN}================================================${NC}"
 echo -e "${CYAN}🚀  Starting Agentic Setup...                   ${NC}"
 echo -e "${CYAN}================================================${NC}\n"
 
-# 1. Install rulesync if not already installed
-echo -e "${BLUE}📦 Step 1: Checking dependencies...${NC}"
-if ! command -v rulesync &> /dev/null; then
-  echo -e "   ${YELLOW}⚠️  rulesync not found. Installing via Homebrew...${NC}"
-  brew install rulesync
-  echo -e "   ${GREEN}✅ rulesync installed successfully!${NC}\n"
-else
-  echo -e "   ${GREEN}✅ rulesync is already installed.${NC}\n"
+echo -e "${BLUE}📦 Step 1: Normalizing generated root files...${NC}"
+
+if [ -f "GEMINI.md" ]; then
+  mkdir -p ".gemini"
+  mv -f "GEMINI.md" ".gemini/GEMINI.md"
+  echo -e "   ${GREEN}→${NC} Moved: ${CYAN}GEMINI.md${NC} to ${YELLOW}.gemini/GEMINI.md${NC}"
 fi
 
-# 2. Run rulesync generate
-echo -e "${BLUE}⚙️  Step 2: Generating configurations...${NC}"
-echo -e "   ${YELLOW}Running rulesync generate...${NC}"
-rulesync generate
-echo -e "   ${GREEN}✅ Configurations generated!${NC}\n"
+if [ -f "AGENTS.md" ]; then
+  for agent_dir in ".codex" ".cursor" ".rovodev"; do
+    mkdir -p "$agent_dir"
+    cp -f "AGENTS.md" "$agent_dir/AGENTS.md"
+    echo -e "   ${GREEN}→${NC} Copied: ${CYAN}AGENTS.md${NC} to ${YELLOW}$agent_dir/AGENTS.md${NC}"
+  done
+  rm -f "AGENTS.md"
+  echo -e "   ${GREEN}→${NC} Removed root ${CYAN}AGENTS.md${NC} after copying."
+fi
 
-# 3. Move generated files to global vendor folders
-echo -e "${BLUE}🔗 Step 3: Moving to global directories...${NC}"
+echo -e "   ${GREEN}✅ Generated root files are normalized.${NC}\n"
 
-REPO_DIR="$(pwd)"
+# 2. Verify generated files are present in the repo
+echo -e "${BLUE}📦 Step 2: Checking committed generated files...${NC}"
 
-move_recursive() {
-  local source_path="$1"
-  local target_path="$2"
+required_paths=(
+  ".codex"
+  ".codex/AGENTS.md"
+  ".cursor"
+  ".cursor/AGENTS.md"
+  ".gemini"
+  ".gemini/GEMINI.md"
+  ".rovodev"
+  ".rovodev/AGENTS.md"
+  ".cursorignore"
+  ".geminiignore"
+)
 
-  if [ -d "$source_path" ]; then
-    mkdir -p "$target_path"
-    for item in "$source_path"/*; do
-      [ -e "$item" ] || continue
-      local basename=$(basename "$item")
-      move_recursive "$item" "$target_path/$basename"
-    done
-    rmdir "$source_path" 2>/dev/null || true
-  else
-    mkdir -p "$(dirname "$target_path")"
-    
-    # Skip if source and target are the exact same physical file to prevent infinite loop
-    if [ "$source_path" -ef "$target_path" ]; then
-      echo -e "   ${YELLOW}→${NC} Skipped identical file: ${CYAN}$source_path${NC}"
-      return
-    fi
-
-    # If it's a symlink or an existing file, remove it first
-    if [ -L "$target_path" ] || [ -f "$target_path" ]; then
-      rm -f "$target_path"
-    fi
-
-    mv -f "$source_path" "$target_path"
-    echo -e "   ${GREEN}→${NC} Moved: ${CYAN}$source_path${NC} to ${YELLOW}$target_path${NC}"
+missing_paths=()
+for path in "${required_paths[@]}"; do
+  if [ ! -e "$path" ]; then
+    missing_paths+=("$path")
   fi
-}
+done
 
-move_vendor() {
-  local repo_folder="$1"
-  local global_folder="$2"
+if [ "${#missing_paths[@]}" -gt 0 ]; then
+  echo -e "   ${YELLOW}Missing generated file(s):${NC}"
+  for path in "${missing_paths[@]}"; do
+    echo -e "   ${YELLOW}→${NC} $path"
+  done
+  echo -e "\n   Run ${CYAN}rulesync generate${NC} after updating .rulesync, then run this script again to normalize the generated outputs."
+  exit 1
+fi
 
-  if [ -d "$repo_folder" ]; then
-    mkdir -p "$global_folder"
-    # Move contents of the repo vendor folder to the global vendor folder
-    for item in "$repo_folder"/*; do
-      if [ -e "$item" ]; then
-        local basename=$(basename "$item")
-        move_recursive "$item" "$global_folder/$basename"
-      fi
-    done
-    rmdir "$repo_folder" 2>/dev/null || true
-  fi
-}
+echo -e "   ${GREEN}✅ Generated files are present.${NC}\n"
 
-# Move each target's generated vendor folder to its global counterpart
-move_vendor ".codex" "$HOME/.codex"
-move_vendor ".cursor" "$HOME/.cursor"
-move_vendor ".gemini" "$HOME/.gemini"
-move_vendor ".rovodev" "$HOME/.rovodev"
+# 3. Copy generated files to global vendor folders
+echo -e "${BLUE}🔗 Step 3: Copying to global directories...${NC}"
 
 copy_recursive() {
   local source_path="$1"
   local target_path="$2"
+  local source_name
+  source_name="$(basename "$source_path")"
+
+  if [ "$source_name" = ".DS_Store" ]; then
+    return
+  fi
+
+  case "$source_path" in
+    .codex/skills/.system|.codex/skills/.system/*)
+      return
+      ;;
+  esac
 
   if [ -d "$source_path" ]; then
     mkdir -p "$target_path"
-    for item in "$source_path"/*; do
+    for item in "$source_path"/* "$source_path"/.[!.]* "$source_path"/..?*; do
       [ -e "$item" ] || continue
-      local basename=$(basename "$item")
-      copy_recursive "$item" "$target_path/$basename"
+      local item_name
+      item_name="$(basename "$item")"
+      copy_recursive "$item" "$target_path/$item_name"
     done
   else
     mkdir -p "$(dirname "$target_path")"
@@ -125,14 +120,21 @@ copy_vendor() {
   if [ -d "$repo_folder" ]; then
     mkdir -p "$global_folder"
     # Copy contents of the repo vendor folder to the global vendor folder
-    for item in "$repo_folder"/*; do
+    for item in "$repo_folder"/* "$repo_folder"/.[!.]* "$repo_folder"/..?*; do
       if [ -e "$item" ]; then
-        local basename=$(basename "$item")
-        copy_recursive "$item" "$global_folder/$basename"
+        local item_name
+        item_name="$(basename "$item")"
+        copy_recursive "$item" "$global_folder/$item_name"
       fi
     done
   fi
 }
+
+# Copy each target's generated vendor folder to its global counterpart
+copy_vendor ".codex" "$HOME/.codex"
+copy_vendor ".cursor" "$HOME/.cursor"
+copy_vendor ".gemini" "$HOME/.gemini"
+copy_vendor ".rovodev" "$HOME/.rovodev"
 
 # Copy the .rulesync folder itself to global
 copy_vendor ".rulesync" "$HOME/.rulesync"
@@ -175,15 +177,6 @@ copy_file ".codexignore" "$HOME/.codexignore"
 copy_file ".cursorignore" "$HOME/.cursorignore"
 copy_file ".geminiignore" "$HOME/.geminiignore"
 copy_file ".rovodevignore" "$HOME/.rovodevignore"
-
-# Copy generated root files to their respective vendor folders
-copy_file "AGENTS.md" "$HOME/.codex/AGENTS.md"
-copy_file "AGENTS.md" "$HOME/.cursor/AGENTS.md"
-copy_file "AGENTS.md" "$HOME/.rovodev/AGENTS.md"
-copy_file "GEMINI.md" "$HOME/.gemini/GEMINI.md"
-
-# Clean up root files that were copied to global directories
-rm -f "AGENTS.md" "GEMINI.md" ".codexignore" ".cursorignore" ".geminiignore" ".rovodevignore"
 
 echo -e "\n${CYAN}================================================${NC}"
 echo -e "${GREEN}✨ Setup complete! You are ready to go.       ${NC}"
