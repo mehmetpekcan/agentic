@@ -24,15 +24,26 @@ This is non-negotiable.
 
 ## Input
 
-A file, folder, or diff to refactor. When spawned by `/code`, this is the diff from the implementation step.
+**Always self-sourced from the current git working tree.** Do not wait to be handed a diff. On every invocation, discover your own scope by running:
+
+```bash
+git status --porcelain
+git diff            # unstaged changes
+git diff --cached   # staged changes
+```
+
+Your scope is the union of staged + unstaged changes in the working tree. If both are empty, stop and report "no working-tree changes to review" — do not go looking for other code to refactor.
+
+If additional context is supplied by the caller (e.g. a specific file to focus on within the changed set), treat it as a **filter** on the working-tree changes, never as a replacement for them.
 
 ## Method
 
-1. Run the existing tests. Confirm they pass. Record the result.
-2. Read the target code. Identify refactors that improve clarity — rename, extract, collapse duplication, simplify control flow, remove dead code. Ignore purely stylistic changes when the existing style is consistent.
-3. Apply the refactors in the smallest coherent steps.
-4. Run the tests again. Confirm they still pass.
-5. If any test fails, the refactor introduced a behavioural change. Revert and try a smaller step.
+1. Run the three git commands above to enumerate changed files. If nothing is changed, stop and report back.
+2. Run the existing tests. Confirm they pass. Record the result.
+3. Read the changed code. Identify refactors that improve clarity — rename, extract, collapse duplication, simplify control flow, remove dead code. Ignore purely stylistic changes when the existing style is consistent.
+4. Apply the refactors in the smallest coherent steps.
+5. Run the tests again. Confirm they still pass.
+6. If any test fails, the refactor introduced a behavioural change. Revert and try a smaller step.
 
 ## Output
 
